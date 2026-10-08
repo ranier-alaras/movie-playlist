@@ -1,13 +1,224 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>movie-playlist</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Movie Playlist</title>
+<style>
+  :root {
+    --bg: #14202b;
+    --panel: #1d2c3a;
+    --line: #2e4254;
+    --text: #eef2f5;
+    --muted: #8fa3b3;
+    --accent: #f2a541;
+    --danger: #e5604f;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); min-height: 100vh; }
+  .app { max-width: 760px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+
+  .masthead { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.75rem; }
+  .masthead h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(2rem, 6vw, 3rem); margin: 0; letter-spacing: -0.02em; }
+  .masthead p { margin: 0; color: var(--accent); font-weight: 600; }
+
+  input, select, button { font: inherit; color: inherit; }
+  input, select { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem 0.75rem; min-width: 0; }
+  input::placeholder { color: var(--muted); }
+  :is(input, select, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .add { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .add input, .add select { background: var(--bg); }
+  .add .grow { flex: 1 1 200px; }
+  .add .year { width: 90px; }
+  .add button { background: var(--accent); color: #1a1204; border: 0; border-radius: 6px; padding: 0.6rem 1.1rem; font-weight: 700; cursor: pointer; }
+  .add button:hover { filter: brightness(1.08); }
+
+  .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; margin: 1.75rem 0 1rem; }
+  .tabs { display: flex; gap: 0.25rem; }
+  .tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 0.4rem 0.75rem; color: var(--muted); cursor: pointer; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+  .movie { display: grid; grid-template-columns: 56px 1fr auto; gap: 1rem; align-items: center; padding: 0.75rem; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .movie.watched { opacity: 0.6; }
+  .movie.watched h2 { text-decoration: line-through; }
+  .poster { width: 56px; height: 80px; display: grid; place-items: center; font-family: Georgia, serif; font-size: 1.8rem; font-weight: 700; color: var(--accent); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+  .info h2 { margin: 0; font-size: 1.1rem; }
+  .info p { margin: 0.15rem 0 0.35rem; color: var(--muted); font-size: 0.9rem; }
+  .stars { display: flex; }
+  .star { background: none; border: 0; padding: 0 0.1rem; font-size: 1.1rem; color: var(--line); cursor: pointer; }
+  .star.on { color: var(--accent); }
+  .actions { display: flex; flex-direction: column; gap: 0.35rem; }
+  .ghost { background: none; border: 1px solid var(--line); border-radius: 6px; padding: 0.35rem 0.7rem; font-size: 0.85rem; cursor: pointer; }
+  .ghost:hover { border-color: var(--accent); }
+  .ghost.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .empty { text-align: center; color: var(--muted); padding: 2.5rem 0; }
+
+  @media (max-width: 520px) {
+    .movie { grid-template-columns: 48px 1fr; }
+    .poster { width: 48px; height: 68px; }
+    .actions { grid-column: 1 / -1; flex-direction: row; }
+    .actions .ghost { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="masthead">
+    <h1>Movie Playlist</h1>
+    <p id="count"></p>
+  </header>
+
+  <form class="add" id="addForm">
+    <input class="grow" id="title" placeholder="Movie title" aria-label="Movie title" />
+    <input class="year" id="year" type="number" placeholder="Year" min="1888" max="2100" aria-label="Release year" />
+    <select id="genre" aria-label="Genre"></select>
+    <select id="rating" aria-label="Rating">
+      <option value="1">1 star</option>
+      <option value="2">2 stars</option>
+      <option value="3" selected>3 stars</option>
+      <option value="4">4 stars</option>
+      <option value="5">5 stars</option>
+    </select>
+    <button type="submit">Add movie</button>
+  </form>
+
+  <div class="toolbar">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-filter="all">All</button>
+      <button class="tab" data-filter="queue">To watch</button>
+      <button class="tab" data-filter="watched">Watched</button>
+    </div>
+    <input type="search" id="search" placeholder="Search playlist" aria-label="Search playlist" />
+  </div>
+
+  <ul class="list" id="list"></ul>
+  <p class="empty" id="empty" hidden></p>
+</main>
+
+<script>
+  const GENRES = ["Action", "Comedy", "Drama", "Horror", "Romance", "Sci-Fi", "Animation", "Thriller"];
+  const KEY = "movie-playlist-v2";
+
+  const STARTER = [
+    { id: 1, title: "Petrang Kabayo", year: 2010, genre: "Comedy", rating: 4, watched: false },
+    { id: 2, title: "Private Benjamin", year: 1980, genre: "Comedy", rating: 4, watched: false },
+    { id: 3, title: "Girl, Boy, Bakla, Tomboy", year: 2013, genre: "Comedy", rating: 4, watched: false },
+  ];
+
+  let movies = load();
+  let filter = "all";
+  let search = "";
+
+  const $ = (id) => document.getElementById(id);
+
+  function load() {
+    try {
+      const saved = localStorage.getItem(KEY);
+      return saved ? JSON.parse(saved) : STARTER;
+    } catch (e) {
+      return STARTER;
+    }
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(movies)); } catch (e) {}
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function render() {
+    const visible = movies.filter((m) => {
+      if (filter === "queue" && m.watched) return false;
+      if (filter === "watched" && !m.watched) return false;
+      return m.title.toLowerCase().includes(search.toLowerCase());
+    });
+
+    $("count").textContent = movies.filter((m) => m.watched).length + " of " + movies.length + " watched";
+
+    $("list").innerHTML = visible.map((m) => `
+      <li class="movie ${m.watched ? "watched" : ""}">
+        <div class="poster" aria-hidden="true">${esc(m.title[0].toUpperCase())}</div>
+        <div class="info">
+          <h2>${esc(m.title)}</h2>
+          <p>${esc([m.year, m.genre].filter(Boolean).join(", "))}</p>
+          <div class="stars" aria-label="Rated ${m.rating} out of 5">
+            ${[1, 2, 3, 4, 5].map((n) => `
+              <button class="star ${n <= m.rating ? "on" : ""}" data-act="rate" data-id="${m.id}" data-n="${n}" aria-label="Rate ${n} stars">★</button>
+            `).join("")}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="ghost" data-act="watch" data-id="${m.id}">${m.watched ? "Move to queue" : "Mark watched"}</button>
+          <button class="ghost danger" data-act="remove" data-id="${m.id}">Remove</button>
+        </div>
+      </li>`).join("");
+
+    const empty = $("empty");
+    empty.hidden = visible.length > 0;
+    empty.textContent = movies.length === 0
+      ? "Your playlist is empty. Add a movie above to start."
+      : "No movies match this view.";
+  }
+
+  // Setup genre dropdown
+  $("genre").innerHTML = GENRES.map((g) => <option>${g}</option>).join("");
+
+  // Add movie
+  $("addForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = $("title").value.trim();
+    if (!title) return;
+    movies.unshift({
+      id: Date.now(),
+      title,
+      year: $("year").value ? Number($("year").value) : null,
+      genre: $("genre").value,
+      rating: Number($("rating").value),
+      watched: false,
+    });
+    e.target.reset();
+    $("rating").value = "3";
+    save();
+    render();
+  });
+
+  // Watch / remove / rate
+  $("list").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const id = Number(btn.dataset.id);
+    const act = btn.dataset.act;
+    if (act === "remove") movies = movies.filter((m) => m.id !== id);
+    if (act === "watch") movies = movies.map((m) => (m.id === id ? { ...m, watched: !m.watched } : m));
+    if (act === "rate") movies = movies.map((m) => (m.id === id ? { ...m, rating: Number(btn.dataset.n) } : m));
+    save();
+    render();
+  });
+
+  // Tabs
+  $("tabs").addEventListener("click", (e) => {
+    const tab = e.target.closest(".tab");
+    if (!tab) return;
+    filter = tab.dataset.filter;
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === tab));
+    render();
+  });
+
+  // Search
+  $("search").addEventListener("input", (e) => {
+    search = e.target.value;
+    render();
+  });
+
+  render();
+</script>
+</body>
 </html>
+Compose
